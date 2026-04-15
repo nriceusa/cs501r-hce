@@ -197,7 +197,7 @@ API keys: GEMINI_API_KEY, GROQ_API_KEY, HUGGINGFACE_API_KEY
     parser.add_argument(
         "--provider",
         default="groq",
-        choices=["gemini", "groq", "huggingface", "hf", "openrouter", "or"],
+        choices=["gemini", "groq", "huggingface", "hf", "openrouter", "or", "github", "together"],
         help="LLM provider to evaluate (default: groq)",
     )
     parser.add_argument(
@@ -210,7 +210,7 @@ API keys: GEMINI_API_KEY, GROQ_API_KEY, HUGGINGFACE_API_KEY
     parser.add_argument(
         "--judge-provider",
         default="gemini",
-        choices=["gemini", "groq", "huggingface", "hf", "openrouter", "or"],
+        choices=["gemini", "groq", "huggingface", "hf", "openrouter", "or", "github", "together"],
         help="LLM provider to use as judge (default: gemini)",
     )
     parser.add_argument(

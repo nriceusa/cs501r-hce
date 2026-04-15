@@ -227,6 +227,66 @@ def mpl_q_flags(all_results: dict[str, list[dict]]) -> plt.Figure:
     return fig
 
 
+def mpl_drift_lines(all_results: dict[str, list[dict]]) -> plt.Figure:
+    """One subplot per behavior label; one line per model; X = drift_turns."""
+    drift_range = [1, 2, 3, 4, 5]
+    labels = [l for l in LABEL_ORDER if l != "parse_error"]
+    n_labels = len(labels)
+    ncols = 3
+    nrows = (n_labels + ncols - 1) // ncols
+
+    fig, axes = plt.subplots(nrows, ncols, figsize=(5 * ncols, 4 * nrows), sharey=False)
+    axes = axes.flatten()
+
+    model_names = list(all_results.keys())
+    line_styles = ["-o", "-s", "-^", "-D", "-v", "-P"]
+
+    for ax_i, label in enumerate(labels):
+        ax = axes[ax_i]
+        for m_i, name in enumerate(model_names):
+            results = all_results[name]
+            # Group by drift_turns, compute proportion with this label
+            by_drift: dict[int, list] = {d: [] for d in drift_range}
+            for r in results:
+                d = r["input"].get("drift_turns")
+                if d in by_drift:
+                    by_drift[d].append(
+                        1 if (r.get("behavior_label") or "parse_error") == label else 0
+                    )
+            xs, ys = [], []
+            for d in drift_range:
+                vals = by_drift[d]
+                if vals:
+                    xs.append(d)
+                    ys.append(sum(vals) / len(vals))
+            if xs:
+                ax.plot(
+                    xs, ys,
+                    line_styles[m_i % len(line_styles)],
+                    label=name,
+                    color=plt.cm.tab10(m_i / max(len(model_names), 1)),
+                    markersize=6,
+                    linewidth=1.8,
+                )
+        ax.set_title(label.replace("_", " "), fontsize=10, color=MPL_COLORS.get(label, "#333"))
+        ax.set_xlabel("drift turns", fontsize=9)
+        ax.set_ylabel("proportion", fontsize=9)
+        ax.set_xticks(drift_range)
+        ax.set_ylim(-0.05, 1.05)
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        if ax_i == 0:
+            ax.legend(fontsize=7, framealpha=0.8)
+
+    # Hide unused subplots
+    for ax in axes[n_labels:]:
+        ax.set_visible(False)
+
+    fig.suptitle("Label proportion vs. conversation drift length", fontsize=12, y=1.01)
+    fig.tight_layout()
+    return fig
+
+
 def fig_to_png(fig: plt.Figure) -> bytes:
     buf = io.BytesIO()
     fig.savefig(buf, format="png", dpi=150, bbox_inches="tight")
@@ -435,6 +495,33 @@ def page_compare(all_loaded: dict[str, list[dict]]):
             key="dl_compare_q",
         )
         plt.close(fig_q)
+
+    # Drift-length line graphs (only if results have drift_turns data)
+    has_drift = any(
+        r["input"].get("drift_turns") for rs in all_loaded.values() for r in rs
+    )
+    if has_drift:
+        st.subheader("Label proportion vs. conversation drift length")
+        st.caption(
+            "X axis = number of unrelated turns between the goal statement and the "
+            "sabotage trigger. Shows whether models maintain prosocial recall as "
+            "conversation length grows."
+        )
+        fig_drift = mpl_drift_lines(all_loaded)
+        st.pyplot(fig_drift)
+        st.download_button(
+            "⬇ Download drift-length plots (PNG)",
+            data=fig_to_png(fig_drift),
+            file_name="prosocial_drift_lines.png",
+            mime="image/png",
+            key="dl_drift",
+        )
+        plt.close(fig_drift)
+    else:
+        st.info(
+            "Drift-length plots require results from the new test case format "
+            "(cases with `drift_turns` field). Run a new evaluation to see these."
+        )
 
     # ── Side-by-side stats table ──
     st.subheader("Summary table")

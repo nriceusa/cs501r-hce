@@ -20,6 +20,8 @@ gemini = ["google-genai>=1.51.0"]
 groq = ["groq"]
 hf = ["huggingface-hub>=0.20"]
 openrouter = ["openai>=1.0"]
+github = ["openai>=1.0"]
+together = ["openai>=1.0"]
 mirror-eval = ["mirroreval"]
 dev = [
     "pytest>=7.0",

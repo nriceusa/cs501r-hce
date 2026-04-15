@@ -82,7 +82,7 @@ class GeminiClient(LLMClient):
     Free tier: generous daily limits on gemini-3-flash-preview
     """
 
-    DEFAULT_MODEL = "gemini-3-flash-preview"
+    DEFAULT_MODEL = "gemini-2.5-flash"
 
     def __init__(self, api_key: str, model: str = DEFAULT_MODEL):
         from google import genai  # type: ignore
@@ -91,7 +91,9 @@ class GeminiClient(LLMClient):
         self.model_name = model
 
     def chat(self, messages: list[dict[str, str]], **kwargs) -> str:
+        import time
         from google.genai import types  # type: ignore
+        from google.genai.errors import ClientError  # type: ignore
 
         # Separate system prompt from conversation messages
         system_instruction = None
@@ -116,12 +118,24 @@ class GeminiClient(LLMClient):
             for msg in chat_messages
         ]
 
-        response = self._client.models.generate_content(
-            model=self.model_name,
-            contents=contents,
-            config=config,
-        )
-        return response.text
+        for attempt in range(1, 6):
+            try:
+                response = self._client.models.generate_content(
+                    model=self.model_name,
+                    contents=contents,
+                    config=config,
+                )
+                return response.text
+            except Exception as e:
+                code = getattr(e, "code", None) or getattr(e, "status_code", None)
+                retryable = code in (429, 503) or "429" in str(e) or "503" in str(e) or "UNAVAILABLE" in str(e)
+                if retryable and attempt < 5:
+                    wait = 20 * attempt
+                    print(f"    Gemini {code or 'error'} (attempt {attempt}/5), retrying in {wait}s…")
+                    time.sleep(wait)
+                else:
+                    raise
+        raise RuntimeError("Gemini chat failed after 5 attempts")
 
 
 class GroqClient(LLMClient):
@@ -168,6 +182,64 @@ class HFInferenceClient(LLMClient):
         response = self.client.chat_completion(
             messages=messages,
             max_tokens=kwargs.get("max_tokens", 512),
+        )
+        return response.choices[0].message.content
+
+
+class GitHubModelsClient(LLMClient):
+    """GitHub Models client — free for GitHub Education students.
+
+    Install: pip install openai
+    Set GITHUB_TOKEN environment variable (Settings → Developer settings →
+    Personal access tokens, or use the token from 'gh auth token').
+
+    Browse models at: https://github.com/marketplace/models
+    Default model: meta-llama/Llama-3.3-70B-Instruct (free tier)
+    """
+
+    BASE_URL = "https://models.inference.ai.azure.com"
+    DEFAULT_MODEL = "meta-llama/Llama-3.3-70B-Instruct"
+
+    def __init__(self, api_key: str, model: str = DEFAULT_MODEL):
+        from openai import OpenAI  # type: ignore
+
+        self.client = OpenAI(base_url=self.BASE_URL, api_key=api_key)
+        self.model_name = model
+
+    def chat(self, messages: list[dict[str, str]], **kwargs) -> str:
+        response = self.client.chat.completions.create(
+            model=self.model_name,
+            messages=messages,  # type: ignore
+            **kwargs,
+        )
+        return response.choices[0].message.content
+
+
+class TogetherClient(LLMClient):
+    """Together AI client — $25 free credits for new accounts.
+
+    Install: pip install openai
+    Set TOGETHER_API_KEY environment variable.
+    Sign up at: https://api.together.ai
+
+    Browse models at: https://api.together.ai/models
+    Default model: meta-llama/Llama-3.3-70B-Instruct-Turbo-Free (free tier)
+    """
+
+    BASE_URL = "https://api.together.xyz/v1"
+    DEFAULT_MODEL = "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free"
+
+    def __init__(self, api_key: str, model: str = DEFAULT_MODEL):
+        from openai import OpenAI  # type: ignore
+
+        self.client = OpenAI(base_url=self.BASE_URL, api_key=api_key)
+        self.model_name = model
+
+    def chat(self, messages: list[dict[str, str]], **kwargs) -> str:
+        response = self.client.chat.completions.create(
+            model=self.model_name,
+            messages=messages,  # type: ignore
+            **kwargs,
         )
         return response.choices[0].message.content
 
@@ -226,6 +298,8 @@ _PROVIDERS: dict[str, type[LLMClient]] = {
     "hf": HFInferenceClient,
     "openrouter": OpenRouterClient,
     "or": OpenRouterClient,
+    "github": GitHubModelsClient,
+    "together": TogetherClient,
 }
 
 # Environment variable names for API keys
@@ -236,6 +310,8 @@ _API_KEY_ENV_VARS: dict[str, str] = {
     "hf": "HUGGINGFACE_API_KEY",
     "openrouter": "OPENROUTER_API_KEY",
     "or": "OPENROUTER_API_KEY",
+    "github": "GITHUB_TOKEN",
+    "together": "TOGETHER_API_KEY",
 }
 
 

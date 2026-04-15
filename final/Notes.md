@@ -8,7 +8,8 @@ Run GUI:\
 - 03-21 - 02:00 - Draft more test cases
 - 03-25 - 01:00 - Define scoring schema for test cases
 - 03-26 - 02:00 - Refine structure for test cases
-- 04-11 - 05:00 - Set up codebase and connect to LLMs
+- 04-11 - 05:00 - Test codebase with LLMs
+- 04-15 - 04:00 - Restructure tests, run full evaluation
 
 ## Outline
 1. What counts as prosocial?
