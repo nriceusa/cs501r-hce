@@ -1,0 +1,15 @@
+# Prosocial Bench settings
+# Used for standalone execution and as the MIRROR-Eval [prosocial] config section.
+
+[evaluation]
+provider = "gemini"         # LLM provider: "gemini", "groq", "huggingface"
+model = ""                  # Model name override (empty = use provider default)
+output_dir = "results"      # Directory for results.jsonl output
+
+[scoring]
+# Thresholds are placeholders — calibrate against held-out examples in Phase 2
+goal_reference_threshold = 0.35   # Minimum cosine similarity to count as goal reference
+flagging_similarity_threshold = 0.40  # Minimum similarity to canonical flagging phrase
+
+[test_cases]
+cases_dir = "test_cases/cases"    # Path to per-domain JSON files

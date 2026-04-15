@@ -1,0 +1,276 @@
+"""Multi-turn LLM conversation runner supporting multiple providers.
+
+Providers are imported lazily so you only need to install the SDK for
+the provider you're actually using.
+
+Usage:
+    client = get_client("gemini", api_key="...")
+    result = client.run_conversation(test_case)
+    print(result["scored_response"])
+"""
+
+import os
+from abc import ABC, abstractmethod
+from typing import Any
+
+from prosocialbench.prompts import get_system_prompt
+
+
+class LLMClient(ABC):
+    """Abstract base class for LLM API clients."""
+
+    @abstractmethod
+    def chat(self, messages: list[dict[str, str]], **kwargs) -> str:
+        """Send a list of messages and return the model's response text.
+
+        Args:
+            messages: List of {"role": "user"|"assistant"|"system", "content": str}
+
+        Returns:
+            The model's response as a plain string.
+        """
+        ...
+
+    def run_conversation(
+        self,
+        test_case: dict[str, Any],
+        system_prompt_variant: str = "default",
+    ) -> dict[str, Any]:
+        """Run a test case as a multi-turn conversation.
+
+        Builds the conversation from the test case's setup_turns, generating
+        model responses for each user turn. Then injects the sabotage_trigger
+        and captures the model's response — this is the "scored_response."
+
+        Args:
+            test_case: A dict conforming to the Prosocial Bench test case schema.
+            system_prompt_variant: Which system prompt to use (see prompts.py).
+
+        Returns:
+            The test_case dict augmented with:
+                conversation_history: Full list of {role, content} dicts.
+                scored_response: The model's response at the sabotage turn.
+        """
+        system_prompt = get_system_prompt(system_prompt_variant)
+        messages: list[dict[str, str]] = [
+            {"role": "system", "content": system_prompt}
+        ]
+
+        # Play out setup turns: user speaks, model responds
+        for turn in test_case.get("setup_turns", []):
+            messages.append({"role": "user", "content": turn["content"]})
+            response = self.chat(messages)
+            messages.append({"role": "assistant", "content": response})
+
+        # Inject the sabotage trigger and capture the scored response
+        messages.append({"role": "user", "content": test_case["sabotage_trigger"]})
+        scored_response = self.chat(messages)
+        messages.append({"role": "assistant", "content": scored_response})
+
+        return {
+            **test_case,
+            "conversation_history": messages,
+            "scored_response": scored_response,
+        }
+
+
+class GeminiClient(LLMClient):
+    """Google Gemini client via AI Studio API.
+
+    Install: pip install google-genai>=1.51.0
+    NOTE: Uses the new google-genai SDK (not the deprecated google-generativeai).
+    Free tier: generous daily limits on gemini-3-flash-preview
+    """
+
+    DEFAULT_MODEL = "gemini-3-flash-preview"
+
+    def __init__(self, api_key: str, model: str = DEFAULT_MODEL):
+        from google import genai  # type: ignore
+
+        self._client = genai.Client(api_key=api_key)
+        self.model_name = model
+
+    def chat(self, messages: list[dict[str, str]], **kwargs) -> str:
+        from google.genai import types  # type: ignore
+
+        # Separate system prompt from conversation messages
+        system_instruction = None
+        chat_messages = []
+        for msg in messages:
+            if msg["role"] == "system":
+                system_instruction = msg["content"]
+            else:
+                chat_messages.append(msg)
+
+        # Build config with system instruction if present
+        config = types.GenerateContentConfig(
+            system_instruction=system_instruction,
+        ) if system_instruction else None
+
+        # Convert to google-genai Content format
+        contents = [
+            types.Content(
+                role="user" if msg["role"] == "user" else "model",
+                parts=[types.Part(text=msg["content"])],
+            )
+            for msg in chat_messages
+        ]
+
+        response = self._client.models.generate_content(
+            model=self.model_name,
+            contents=contents,
+            config=config,
+        )
+        return response.text
+
+
+class GroqClient(LLMClient):
+    """Groq client for fast open-source model inference.
+
+    Install: pip install groq
+    Free tier: generous daily limits; 30,000 TPM on llama-4-scout
+    Default model: meta-llama/llama-4-scout-17b-16e-instruct (Llama 4 Scout)
+    """
+
+    DEFAULT_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
+
+    def __init__(self, api_key: str, model: str = DEFAULT_MODEL):
+        from groq import Groq  # type: ignore
+
+        self.client = Groq(api_key=api_key)
+        self.model_name = model
+
+    def chat(self, messages: list[dict[str, str]], **kwargs) -> str:
+        response = self.client.chat.completions.create(
+            model=self.model_name,
+            messages=messages,  # type: ignore
+            **kwargs,
+        )
+        return response.choices[0].message.content
+
+
+class HFInferenceClient(LLMClient):
+    """HuggingFace Inference API client.
+
+    Install: pip install huggingface-hub
+    Set HUGGINGFACE_API_KEY (or HF_TOKEN) environment variable.
+    """
+
+    DEFAULT_MODEL = "meta-llama/Meta-Llama-3-8B-Instruct"
+
+    def __init__(self, api_key: str, model: str = DEFAULT_MODEL):
+        from huggingface_hub import InferenceClient  # type: ignore
+
+        self.client = InferenceClient(model=model, token=api_key)
+        self.model_name = model
+
+    def chat(self, messages: list[dict[str, str]], **kwargs) -> str:
+        response = self.client.chat_completion(
+            messages=messages,
+            max_tokens=kwargs.get("max_tokens", 512),
+        )
+        return response.choices[0].message.content
+
+
+class OpenRouterClient(LLMClient):
+    """OpenRouter client — OpenAI-compatible gateway to 300+ models.
+
+    Install: pip install openai
+    Set OPENROUTER_API_KEY environment variable.
+
+    Free tier: models with the `:free` suffix, 50 requests/day without credits.
+    Browse models at: https://openrouter.ai/models
+
+    Default model: meta-llama/llama-3.3-70b-instruct:free
+    """
+
+    BASE_URL = "https://openrouter.ai/api/v1"
+    DEFAULT_MODEL = "google/gemma-4-31b-it:free"
+
+    def __init__(self, api_key: str, model: str = DEFAULT_MODEL):
+        from openai import OpenAI  # type: ignore
+
+        self.client = OpenAI(base_url=self.BASE_URL, api_key=api_key)
+        self.model_name = model
+
+    def chat(self, messages: list[dict[str, str]], **kwargs) -> str:
+        import time
+
+        last_err = None
+        for attempt in range(1, 4):  # up to 3 attempts
+            try:
+                response = self.client.chat.completions.create(
+                    model=self.model_name,
+                    messages=messages,  # type: ignore
+                    **kwargs,
+                )
+                return response.choices[0].message.content
+            except Exception as e:
+                # Retry on rate-limit (429) or transient server errors (5xx)
+                code = getattr(e, "status_code", None)
+                if code in (429, 500, 502, 503, 504) and attempt < 3:
+                    wait = 10 * attempt  # 10s, then 20s
+                    print(f"    [OpenRouter] {code} on attempt {attempt}, retrying in {wait}s…")
+                    time.sleep(wait)
+                    last_err = e
+                else:
+                    raise
+        raise last_err  # type: ignore
+
+
+# Provider registry
+_PROVIDERS: dict[str, type[LLMClient]] = {
+    "gemini": GeminiClient,
+    "groq": GroqClient,
+    "huggingface": HFInferenceClient,
+    "hf": HFInferenceClient,
+    "openrouter": OpenRouterClient,
+    "or": OpenRouterClient,
+}
+
+# Environment variable names for API keys
+_API_KEY_ENV_VARS: dict[str, str] = {
+    "gemini": "GEMINI_API_KEY",
+    "groq": "GROQ_API_KEY",
+    "huggingface": "HUGGINGFACE_API_KEY",
+    "hf": "HUGGINGFACE_API_KEY",
+    "openrouter": "OPENROUTER_API_KEY",
+    "or": "OPENROUTER_API_KEY",
+}
+
+
+def get_client(
+    provider: str,
+    api_key: str | None = None,
+    model: str | None = None,
+) -> LLMClient:
+    """Factory function for LLM clients.
+
+    Args:
+        provider: One of "gemini", "groq", "huggingface" (or "hf")
+        api_key: API key. If None, reads from environment variable.
+        model: Model name override. Uses provider default if None.
+
+    Returns:
+        An LLMClient instance for the requested provider.
+    """
+    if provider not in _PROVIDERS:
+        raise ValueError(
+            f"Unknown provider '{provider}'. "
+            f"Choose from: {list(_PROVIDERS.keys())}"
+        )
+
+    if api_key is None:
+        env_var = _API_KEY_ENV_VARS[provider]
+        api_key = os.environ.get(env_var)
+        if not api_key:
+            raise ValueError(
+                f"No API key found for provider '{provider}'. "
+                f"Pass api_key= or set the {env_var} environment variable."
+            )
+
+    kwargs: dict[str, Any] = {"api_key": api_key}
+    if model:
+        kwargs["model"] = model
+
+    return _PROVIDERS[provider](**kwargs)
