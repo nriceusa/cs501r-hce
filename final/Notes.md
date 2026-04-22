@@ -28,7 +28,7 @@ Run GUI:\
 - 04-11 - 05:00 - Test codebase with LLMs
 - 04-15 - 04:00 - Restructure tests, run full evaluation
 - 04-20 - 00:30 - Refactor codebase with new name
-- 04-21 - 01:00 - Plan project next-steps
+- 04-21 - 01:00 - Plan project next-steps and increment to v0.2.0
 
 Next steps:
 - Remove `SYSTEM_PROMPT_VARIANTS` in `prompts.py`
@@ -41,7 +41,7 @@ Next steps:
 - Swap models out for industry standards (i.e. Gemini, ChatGPT, Claude, Grok) with something free like Llama as judge. Switch provider to purely OpenRouter.
 - Run new evaluation
 - Clean out old `jsonl`s and `logs` under `results` directory.
-- Write paper with new results
+- Write paper with new results.
 - Integrate into MIRROR-Eval.
 - Redesign analysis GUI.
 
