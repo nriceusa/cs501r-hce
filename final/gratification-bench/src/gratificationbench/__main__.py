@@ -222,9 +222,9 @@ API keys: GEMINI_API_KEY, GROQ_API_KEY, HUGGINGFACE_API_KEY
     # Conversation setup
     parser.add_argument(
         "--system-prompt",
-        default="default",
-        choices=["default", "neutral", "coach", "explicit"],
-        help="System prompt variant for the evaluatee (default: minimal)",
+        default="neutral",
+        choices=["neutral", "explicit"],
+        help="System prompt variant for the evaluatee (default: neutral)",
     )
 
     # Output
