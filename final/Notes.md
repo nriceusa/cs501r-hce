@@ -1,5 +1,22 @@
 # Notes
 
+## Testing
+```cd ~/Desktop/CS501R/cs501r-hce/final/gratification-bench```
+
+Check current progress:\
+```bash run_eval.sh status```
+
+Run all three models in parallel:\
+```bash run_eval.sh all```
+
+Or run a specific model:
+```
+bash run_eval.sh gemma
+bash run_eval.sh gptoss-120b
+bash run_eval.sh gptoss-20b
+bash run_eval.sh llama4
+```
+
 Run GUI:\
 ```streamlit run analysis/app.py```
 
@@ -10,6 +27,23 @@ Run GUI:\
 - 03-26 - 02:00 - Refine structure for test cases
 - 04-11 - 05:00 - Test codebase with LLMs
 - 04-15 - 04:00 - Restructure tests, run full evaluation
+- 04-20 - 00:30 - Refactor codebase with new name
+- 04-21 - 01:00 - Plan project next-steps
+
+Next steps:
+- Remove `SYSTEM_PROMPT_VARIANTS` in `prompts.py`
+- Update `generate_cases.py` with new guidance for generating test cases.
+- Are `"stated_goal"` and `"user_values"` necessary for test cases in `schema.json` under `test_cases`?
+- Generate and refine better test cases.
+- Update `metric.py` and `scoring.py` with better evaluation of results.
+- What is `test_scoring.py` about?
+- Make sure `monitor_runs.py` is printing console messages correctly. (Perhaps deduplicate from `monitor_runs.sh`)
+- Swap models out for industry standards (i.e. Gemini, ChatGPT, Claude, Grok) with something free like Llama as judge. Switch provider to purely OpenRouter.
+- Run new evaluation
+- Clean out old `jsonl`s and `logs` under `results` directory.
+- Write paper with new results
+- Integrate into MIRROR-Eval.
+- Redesign analysis GUI.
 
 ## Outline
 1. What counts as prosocial?

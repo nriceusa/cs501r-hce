@@ -1,14 +1,14 @@
-"""Standalone CLI runner for Prosocial Bench.
+"""Standalone CLI runner for Gratification Bench.
 
 Usage:
     # Full evaluation run
-    python -m prosocialbench --provider groq --judge-provider gemini
+    python -m gratificationbench --provider groq --judge-provider gemini
 
     # Verify judge calibration only (no conversation needed)
-    python -m prosocialbench --verify --judge-provider gemini
+    python -m gratificationbench --verify --judge-provider gemini
 
     # Dry run: list test cases without calling any API
-    python -m prosocialbench --dry-run
+    python -m gratificationbench --dry-run
 
 API keys are read from environment variables:
     GEMINI_API_KEY, GROQ_API_KEY, HUGGINGFACE_API_KEY
@@ -19,7 +19,7 @@ import json
 import sys
 from pathlib import Path
 
-# Load .env from the project root (prosocial-bench/) if it exists.
+# Load .env from the project root (gratification-bench/) if it exists.
 # This lets you store API keys in .env without ever pasting them in chat.
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent.parent.parent / ".env", override=False)
@@ -92,11 +92,11 @@ def _run_verify(judge_provider: str, judge_model: str | None) -> bool:
 
     Returns True if all expected labels matched, False otherwise.
     """
-    from prosocialbench.conversation import get_client
-    from prosocialbench.scoring import build_judge_prompt, compute_score
+    from gratificationbench.conversation import get_client
+    from gratificationbench.scoring import build_judge_prompt, compute_score
 
     print("=" * 70)
-    print("PROSOCIAL BENCH — Judge Calibration Verify")
+    print("GRATIFICATION BENCH — Judge Calibration Verify")
     print(f"Judge: {judge_provider} / {judge_model or '(default)'}")
     print("=" * 70)
     print()
@@ -153,7 +153,7 @@ def _run_verify(judge_provider: str, judge_model: str | None) -> bool:
 
 def _print_judge_prompt_preview() -> None:
     """Print a sample filled-in judge prompt for inspection (no API needed)."""
-    from prosocialbench.scoring import build_judge_prompt
+    from gratificationbench.scoring import build_judge_prompt
 
     sample_response = (
         "I notice this conflicts with your goal of quitting vaping. "
@@ -161,7 +161,7 @@ def _print_judge_prompt_preview() -> None:
     )
     prompt = build_judge_prompt(_VERIFY_CASE, sample_response)
     print("=" * 70)
-    print("SAMPLE JUDGE PROMPT (filled in for addiction_001, prosocial response)")
+    print("SAMPLE JUDGE PROMPT (filled in for addiction_001, gratification-resisting response)")
     print("=" * 70)
     print(prompt)
     print("=" * 70)
@@ -169,25 +169,25 @@ def _print_judge_prompt_preview() -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Run Prosocial Bench evaluation",
+        description="Run Gratification Bench evaluation",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
   # Verify judge calibration (Tier 2 test, judge API key only)
-  python -m prosocialbench --verify --judge-provider gemini
+  python -m gratificationbench --verify --judge-provider gemini
 
   # Preview the judge prompt with a sample response (no API key needed)
-  python -m prosocialbench --show-prompt
+  python -m gratificationbench --show-prompt
 
   # Full evaluation run
-  python -m prosocialbench --provider groq --judge-provider gemini
+  python -m gratificationbench --provider groq --judge-provider gemini
 
   # Evaluate specific domains
-  python -m prosocialbench --provider groq --judge-provider gemini \\
+  python -m gratificationbench --provider groq --judge-provider gemini \\
       --domains productivity addiction
 
   # List all test cases without calling any API
-  python -m prosocialbench --dry-run
+  python -m gratificationbench --dry-run
 
 API keys: GEMINI_API_KEY, GROQ_API_KEY, HUGGINGFACE_API_KEY
         """,
@@ -288,10 +288,10 @@ API keys: GEMINI_API_KEY, GROQ_API_KEY, HUGGINGFACE_API_KEY
 
     # --- Normal evaluation run ---
 
-    from prosocialbench.dataset import ProsocialBenchDataset
-    from prosocialbench.metric import ProsocialBenchMetric
+    from gratificationbench.dataset import GratificationBenchDataset
+    from gratificationbench.metric import GratificationBenchMetric
 
-    dataset = ProsocialBenchDataset(
+    dataset = GratificationBenchDataset(
         cases_dir=args.cases_dir,
         domains=args.domains,
     )
@@ -308,7 +308,7 @@ API keys: GEMINI_API_KEY, GROQ_API_KEY, HUGGINGFACE_API_KEY
             print(f"  {case['id']} [{case['domain']}] — {case['stated_goal'][:60]}...")
         return
 
-    metric = ProsocialBenchMetric(
+    metric = GratificationBenchMetric(
         provider=args.provider,
         model=args.model,
         judge_provider=args.judge_provider,
@@ -319,8 +319,29 @@ API keys: GEMINI_API_KEY, GROQ_API_KEY, HUGGINGFACE_API_KEY
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    count = 0
-    total = len(dataset)
+    # Resume: load any already-scored case IDs from the output file,
+    # then remove those cases from the dataset so no API calls are wasted.
+    already_done: set[str] = set()
+    if output_path.exists() and output_path.stat().st_size > 0:
+        with open(output_path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    try:
+                        r = json.loads(line)
+                        already_done.add(r["input"]["id"])
+                    except Exception:
+                        pass
+        if already_done:
+            before = len(dataset)
+            dataset._data = [c for c in dataset._data if c["id"] not in already_done]
+            print(
+                f"Resuming: skipping {len(already_done)} already-scored cases "
+                f"({before - len(dataset)} filtered, {len(dataset)} remaining)."
+            )
+
+    total = len(dataset) + len(already_done)  # total in full benchmark
+    count = len(already_done)
 
     print(
         f"Evaluatee: {args.provider}/{args.model or 'default'} | "
@@ -329,14 +350,16 @@ API keys: GEMINI_API_KEY, GROQ_API_KEY, HUGGINGFACE_API_KEY
     print()
 
     limit = args.limit
-    with open(output_path, "w", encoding="utf-8") as f:
+    # Open in append mode so already-scored results are preserved on disk
+    with open(output_path, "a", encoding="utf-8") as f:
         for result in metric(dataset):
             f.write(json.dumps(result) + "\n")
             f.flush()
             count += 1
+            case_id = result["input"]["id"]
             label = result.get("behavior_label") or "parse_error"
             print(
-                f"  [{count}/{total}] {result['input']['id']}: "
+                f"  [{count}/{total}] {case_id}: "
                 f"{label} | {result.get('reasoning', '')[:80]}"
             )
             if limit and count >= limit:

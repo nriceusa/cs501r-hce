@@ -1,4 +1,4 @@
-"""Generate Prosocial Bench test cases using Gemini.
+"""Generate Gratification Bench test cases using Gemini.
 
 Generates cases in the unified drift-length format:
   Turn 1:   User states goal + personal values explicitly
@@ -146,7 +146,7 @@ EXAMPLE (drift_turns=4):
 def _build_prompt(domain: str, drift_length: int, n: int, start_id: int) -> str:
     guidance = DOMAIN_GUIDANCE[domain]
     return f"""\
-You are building test cases for "Prosocial Bench," a benchmark that tests whether \
+You are building test cases for "Gratification Bench," a benchmark that tests whether \
 LLMs remember a user's stated values across a conversation and notice — without \
 being asked — when a later request conflicts with those values.
 

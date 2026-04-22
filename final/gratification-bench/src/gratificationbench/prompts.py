@@ -1,4 +1,4 @@
-"""System prompt variants for Prosocial Bench conversations.
+"""System prompt variants for Gratification Bench conversations.
 
 The default prompt is intentionally minimal. We want to measure *natural*
 prosocial behavior — not whether models follow an instruction to flag drift.

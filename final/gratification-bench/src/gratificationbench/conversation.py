@@ -13,7 +13,7 @@ import os
 from abc import ABC, abstractmethod
 from typing import Any
 
-from prosocialbench.prompts import get_system_prompt
+from gratificationbench.prompts import get_system_prompt
 
 
 class LLMClient(ABC):
@@ -43,7 +43,7 @@ class LLMClient(ABC):
         and captures the model's response — this is the "scored_response."
 
         Args:
-            test_case: A dict conforming to the Prosocial Bench test case schema.
+            test_case: A dict conforming to the Gratification Bench test case schema.
             system_prompt_variant: Which system prompt to use (see prompts.py).
 
         Returns:
@@ -86,8 +86,11 @@ class GeminiClient(LLMClient):
 
     def __init__(self, api_key: str, model: str = DEFAULT_MODEL):
         from google import genai  # type: ignore
+        from google.genai import types as _types  # type: ignore
 
-        self._client = genai.Client(api_key=api_key)
+        # 120s timeout so hung connections raise rather than sleep forever
+        http_options = _types.HttpOptions(timeout=120_000)
+        self._client = genai.Client(api_key=api_key, http_options=http_options)
         self.model_name = model
 
     def chat(self, messages: list[dict[str, str]], **kwargs) -> str:
@@ -118,7 +121,7 @@ class GeminiClient(LLMClient):
             for msg in chat_messages
         ]
 
-        for attempt in range(1, 6):
+        for attempt in range(1, 10):
             try:
                 response = self._client.models.generate_content(
                     model=self.model_name,
@@ -128,14 +131,19 @@ class GeminiClient(LLMClient):
                 return response.text
             except Exception as e:
                 code = getattr(e, "code", None) or getattr(e, "status_code", None)
-                retryable = code in (429, 503) or "429" in str(e) or "503" in str(e) or "UNAVAILABLE" in str(e)
-                if retryable and attempt < 5:
-                    wait = 20 * attempt
-                    print(f"    Gemini {code or 'error'} (attempt {attempt}/5), retrying in {wait}s…")
+                retryable = code in (429, 500, 503) or any(
+                    x in str(e) for x in ("429", "500", "503", "UNAVAILABLE", "INTERNAL",
+                                          "timed out", "timeout", "DeadlineExceeded",
+                                          "ConnectError", "EOF", "ConnectionError",
+                                          "RemoteDisconnected", "Connection reset")
+                )
+                if retryable and attempt < 9:
+                    wait = min(20 * attempt, 120)  # 20, 40, 60 … capped at 120s
+                    print(f"    Gemini {code or 'error'} (attempt {attempt}/9), retrying in {wait}s…")
                     time.sleep(wait)
                 else:
                     raise
-        raise RuntimeError("Gemini chat failed after 5 attempts")
+        raise RuntimeError("Gemini chat failed after 9 attempts")
 
 
 class GroqClient(LLMClient):
@@ -155,12 +163,53 @@ class GroqClient(LLMClient):
         self.model_name = model
 
     def chat(self, messages: list[dict[str, str]], **kwargs) -> str:
-        response = self.client.chat.completions.create(
-            model=self.model_name,
-            messages=messages,  # type: ignore
-            **kwargs,
-        )
-        return response.choices[0].message.content
+        import re
+        import time
+
+        for attempt in range(1, 9):
+            try:
+                response = self.client.chat.completions.create(
+                    model=self.model_name,
+                    messages=messages,  # type: ignore
+                    **kwargs,
+                )
+                return response.choices[0].message.content
+            except Exception as e:
+                err_str = str(e)
+                err_type = type(e).__name__
+                retryable = (
+                    "429" in err_str or "rate_limit" in err_str.lower() or "503" in err_str
+                    or "ConnectError" in err_type or "APIConnectionError" in err_type
+                    or any(x in err_str for x in ("nodename nor servname", "Connection error",
+                                                   "ConnectionError", "timed out", "timeout"))
+                )
+                if not retryable or attempt >= 8:
+                    raise
+
+                # Parse "Please try again in Xm Ys" or "in Xs" from the error message
+                wait = self._parse_retry_after(err_str)
+                if wait is None:
+                    wait = min(30 * attempt, 300)  # fallback: 30/60/90…300s
+                else:
+                    wait = int(wait) + 5  # add 5s buffer
+
+                is_conn = "ConnectError" in err_type or "APIConnectionError" in err_type
+                label = "connection error" if is_conn else "rate limit"
+                print(f"    Groq {label} (attempt {attempt}/8), retrying in {wait}s…")
+                time.sleep(wait)
+        raise RuntimeError("Groq chat failed after 8 attempts")
+
+    @staticmethod
+    def _parse_retry_after(err_str: str) -> float | None:
+        """Extract the suggested retry delay (in seconds) from a Groq error string."""
+        import re
+        # "Please try again in 4m27.49s"
+        m = re.search(r"try again in\s+(?:(\d+)m\s*)?(\d+(?:\.\d+)?)s", err_str)
+        if m:
+            minutes = int(m.group(1) or 0)
+            seconds = float(m.group(2))
+            return minutes * 60 + seconds
+        return None
 
 
 class HFInferenceClient(LLMClient):
@@ -203,7 +252,7 @@ class GitHubModelsClient(LLMClient):
     def __init__(self, api_key: str, model: str = DEFAULT_MODEL):
         from openai import OpenAI  # type: ignore
 
-        self.client = OpenAI(base_url=self.BASE_URL, api_key=api_key)
+        self.client = OpenAI(base_url=self.BASE_URL, api_key=api_key, timeout=120.0)
         self.model_name = model
 
     def chat(self, messages: list[dict[str, str]], **kwargs) -> str:
@@ -232,7 +281,7 @@ class TogetherClient(LLMClient):
     def __init__(self, api_key: str, model: str = DEFAULT_MODEL):
         from openai import OpenAI  # type: ignore
 
-        self.client = OpenAI(base_url=self.BASE_URL, api_key=api_key)
+        self.client = OpenAI(base_url=self.BASE_URL, api_key=api_key, timeout=120.0)
         self.model_name = model
 
     def chat(self, messages: list[dict[str, str]], **kwargs) -> str:
@@ -262,14 +311,16 @@ class OpenRouterClient(LLMClient):
     def __init__(self, api_key: str, model: str = DEFAULT_MODEL):
         from openai import OpenAI  # type: ignore
 
-        self.client = OpenAI(base_url=self.BASE_URL, api_key=api_key)
+        # 120s timeout so hung connections raise rather than sleep forever
+        self.client = OpenAI(base_url=self.BASE_URL, api_key=api_key, timeout=120.0)
         self.model_name = model
 
     def chat(self, messages: list[dict[str, str]], **kwargs) -> str:
+        import re
         import time
 
         last_err = None
-        for attempt in range(1, 4):  # up to 3 attempts
+        for attempt in range(1, 9):  # up to 8 attempts
             try:
                 response = self.client.chat.completions.create(
                     model=self.model_name,
@@ -278,16 +329,40 @@ class OpenRouterClient(LLMClient):
                 )
                 return response.choices[0].message.content
             except Exception as e:
-                # Retry on rate-limit (429) or transient server errors (5xx)
+                err_str = str(e)
                 code = getattr(e, "status_code", None)
-                if code in (429, 500, 502, 503, 504) and attempt < 3:
-                    wait = 10 * attempt  # 10s, then 20s
-                    print(f"    [OpenRouter] {code} on attempt {attempt}, retrying in {wait}s…")
-                    time.sleep(wait)
-                    last_err = e
-                else:
+                retryable = code in (429, 500, 502, 503, 504) or any(
+                    x in err_str for x in ("429", "502", "503", "rate limit", "upstream",
+                                           "timed out", "timeout", "RemoteDisconnected",
+                                           "ConnectError", "APIConnectionError",
+                                           "Connection error", "EOF", "Connection reset")
+                ) or type(e).__name__ in ("APIConnectionError", "ConnectError")
+                if not retryable or attempt >= 8:
                     raise
+
+                # Try to parse a retry-after delay from the error body
+                wait = self._parse_retry_after(err_str)
+                if wait is None:
+                    wait = min(30 * attempt, 180)  # 30, 60, 90 … 180s cap
+                else:
+                    wait = int(wait) + 5
+
+                print(f"    [OpenRouter] {code or 'err'} (attempt {attempt}/8), retrying in {wait}s…")
+                time.sleep(wait)
+                last_err = e
         raise last_err  # type: ignore
+
+    @staticmethod
+    def _parse_retry_after(err_str: str) -> float | None:
+        """Parse 'retry after Xs' or 'Xm Ys' from an error string."""
+        import re
+        m = re.search(r"retry.{0,10}?(\d+(?:\.\d+)?)\s*s(?:econds?)?", err_str, re.I)
+        if m:
+            return float(m.group(1))
+        m = re.search(r"(\d+)m\s*(\d+(?:\.\d+)?)s", err_str)
+        if m:
+            return int(m.group(1)) * 60 + float(m.group(2))
+        return None
 
 
 # Provider registry

@@ -3,9 +3,9 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "prosocialbench"
-version = "0.1.0"
-description = "A benchmark for measuring prosocial behavior in LLMs"
+name = "gratificationbench"
+version = "0.2.0"
+description = "A benchmark for measuring gratification-resisting behavior in LLMs"
 requires-python = ">=3.10"
 license = {text = "Apache-2.0"}
 dependencies = [

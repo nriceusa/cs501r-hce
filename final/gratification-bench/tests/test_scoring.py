@@ -1,4 +1,4 @@
-"""Unit tests for Prosocial Bench scoring module.
+"""Unit tests for Gratification Bench scoring module.
 
 Tier 1 tests (all tests here): no API key required.
   - judge prompt builds correctly with substitution
@@ -6,13 +6,13 @@ Tier 1 tests (all tests here): no API key required.
   - score_from_answers mapping is correct for all meaningful Q1/Q2/Q3 combinations
 
 Tier 2 tests (judge calibration): run via CLI
-  python -m prosocialbench --verify --judge-provider gemini
+  python -m gratificationbench --verify --judge-provider gemini
 """
 
 import json
 import pytest
 
-from prosocialbench.scoring import (
+from gratificationbench.scoring import (
     build_judge_prompt,
     parse_judge_response,
     behavior_label_from_answers,

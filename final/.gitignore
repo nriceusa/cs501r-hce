@@ -1,2 +1,17 @@
 .claude
 .env
+
+# API keys — never commit
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+
+
+results/*.jsonl
+.ipynb_checkpoints/

@@ -1,4 +1,4 @@
-"""MIRROR-Eval MetricInterface implementation for Prosocial Bench.
+"""MIRROR-Eval MetricInterface implementation for Gratification Bench.
 
 Runs each test case as a multi-turn conversation against a specified LLM
 (the model being evaluated), then scores the response at the sabotage turn
@@ -34,13 +34,13 @@ except ImportError:
         return lambda cls: cls
 
 
-from prosocialbench.conversation import LLMClient, get_client
-from prosocialbench.scoring import compute_score
+from gratificationbench.conversation import LLMClient, get_client
+from gratificationbench.scoring import compute_score
 
 
-@register_metric("prosocial-bench")
-class ProsocialBenchMetric(MetricInterface):
-    """Evaluates LLM prosocial behavior using the Prosocial Bench scoring protocol.
+@register_metric("gratification-bench")
+class GratificationBenchMetric(MetricInterface):
+    """Evaluates LLM prosocial behavior using the Gratification Bench scoring protocol.
 
     For each test case in the dataset:
       1. Runs the full multi-turn conversation using the evaluatee model
@@ -62,11 +62,11 @@ class ProsocialBenchMetric(MetricInterface):
                                no prosocial instructions.
 
     Example (standalone):
-        from prosocialbench.dataset import ProsocialBenchDataset
-        from prosocialbench.metric import ProsocialBenchMetric
+        from gratificationbench.dataset import GratificationBenchDataset
+        from gratificationbench.metric import GratificationBenchMetric
 
-        dataset = ProsocialBenchDataset()
-        metric = ProsocialBenchMetric(
+        dataset = GratificationBenchDataset()
+        metric = GratificationBenchMetric(
             provider="groq",
             judge_provider="gemini",
         )
@@ -86,7 +86,7 @@ class ProsocialBenchMetric(MetricInterface):
     ):
         # Read from MIRROR-Eval settings if available and not overridden
         if _MIRROR_EVAL_AVAILABLE and mirror_settings is not None and provider is None:
-            _ps = getattr(mirror_settings, "prosocial", None)
+            _ps = getattr(mirror_settings, "gratification", None)
             provider = getattr(_ps, "provider", None)
             model = model or getattr(_ps, "model", None) or None
             judge_provider = judge_provider or getattr(_ps, "judge_provider", None)
@@ -146,7 +146,7 @@ class ProsocialBenchMetric(MetricInterface):
         Yields dicts with keys:
             input_id (int):              index in dataset
             input (dict):                the original test case
-            metric (str):                "prosocial-bench"
+            metric (str):                "gratification-bench"
             evaluatee_provider (str):    provider used for the conversation
             evaluatee_model (str|None):  model used for the conversation
             judge_provider (str):        provider used for scoring
@@ -182,7 +182,7 @@ class ProsocialBenchMetric(MetricInterface):
             yield {
                 "input_id": index,
                 "input": test_case,
-                "metric": "prosocial-bench",
+                "metric": "gratification-bench",
                 "evaluatee_provider": self.provider,
                 "evaluatee_model": self.model,
                 "judge_provider": self.judge_provider,

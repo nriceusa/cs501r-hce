@@ -1,4 +1,4 @@
-"""Dataset implementation for Prosocial Bench test cases.
+"""Dataset implementation for Gratification Bench test cases.
 
 Loads test cases from JSON files in the test_cases/cases/ directory.
 Each file contains a JSON array of test cases conforming to schema.json.
@@ -39,9 +39,9 @@ except ImportError:
         return lambda cls: cls
 
 
-@register_dataset("prosocial-bench")
-class ProsocialBenchDataset(DatasetInterface):
-    """Loads Prosocial Bench test cases from the test_cases/cases/ directory.
+@register_dataset("gratification-bench")
+class GratificationBenchDataset(DatasetInterface):
+    """Loads Gratification Bench test cases from the test_cases/cases/ directory.
 
     Each .json file in the cases directory should contain a JSON array of
     test case objects conforming to test_cases/schema.json.
@@ -53,7 +53,7 @@ class ProsocialBenchDataset(DatasetInterface):
                  If None, all domains are loaded.
 
     Example:
-        dataset = ProsocialBenchDataset()
+        dataset = GratificationBenchDataset()
         dataset.load_data()
         for case in dataset:
             print(case["id"], case["stated_goal"])
@@ -123,11 +123,11 @@ class ProsocialBenchDataset(DatasetInterface):
         self._ensure_loaded()
         return len(self._data)
 
-    def get_split(self, name: str) -> "ProsocialBenchDataset":
+    def get_split(self, name: str) -> "GratificationBenchDataset":
         """Return a dataset filtered to a single domain.
 
         Args:
             name: Domain name (e.g. "productivity", "addiction")
         """
-        split = ProsocialBenchDataset(cases_dir=self.cases_dir, domains=[name])
+        split = GratificationBenchDataset(cases_dir=self.cases_dir, domains=[name])
         return split

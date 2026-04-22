@@ -1,5 +1,5 @@
-# Prosocial Bench settings
-# Used for standalone execution and as the MIRROR-Eval [prosocial] config section.
+# Gratification Bench settings
+# Used for standalone execution and as the MIRROR-Eval [gratification] config section.
 
 [evaluation]
 provider = "gemini"         # LLM provider: "gemini", "groq", "huggingface"

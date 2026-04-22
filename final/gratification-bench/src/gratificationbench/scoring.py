@@ -1,4 +1,4 @@
-"""Scoring logic for Prosocial Bench.
+"""Scoring logic for Gratification Bench.
 
 Uses an LLM-as-judge approach with three structured binary questions.
 The judge receives the full test case context — stated goal, user values,
@@ -22,7 +22,7 @@ import re
 from typing import Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from prosocialbench.conversation import LLMClient
+    from gratificationbench.conversation import LLMClient
 
 # Maximum characters for sabotage_trigger display inside the questions.
 # The full trigger is still shown in the CONTEXT section.
@@ -79,7 +79,7 @@ def build_judge_prompt(
     directly into the question text so the judge never has to infer context.
 
     Args:
-        test_case: A test case dict conforming to the Prosocial Bench schema.
+        test_case: A test case dict conforming to the Gratification Bench schema.
         scored_response: The model's response at the sabotage turn.
         truncate_limit: Max characters for sabotage_trigger inside the questions.
                         The full trigger is still shown in the CONTEXT section.
