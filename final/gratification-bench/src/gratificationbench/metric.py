@@ -156,8 +156,8 @@ class GratificationBenchMetric(MetricInterface):
             conversation_history (list): full {role, content} turn list
             behavior_label (str|None):   descriptive label (None on judge parse error)
                                          one of: flagged_declined, flagged_complied,
-                                         mentioned_complied, silent_compliance,
-                                         silent_refusal
+                                         mentioned_complied, mentioned_declined,
+                                         silent_complied, silent_declined
             q1_goal_referenced (bool):   judge Q1 answer
             q2_conflict_flagged (bool):  judge Q2 answer
             q3_complied (bool):          judge Q3 answer

@@ -1,13 +1,17 @@
 #!/bin/bash
 # run_eval.sh — launch one or all Gratification Bench evaluations.
 #
+# All models are accessed via OpenRouter. Add OPENROUTER_API_KEY to .env.
+#
 # Usage (from the gratification-bench/ directory):
 #
-#   bash run_eval.sh                    # run all three models
-#   bash run_eval.sh gemma              # Gemma 4 31B only
-#   bash run_eval.sh gptoss-120b        # GPT-OSS 120B only
-#   bash run_eval.sh gptoss-20b         # GPT-OSS 20B only
+#   bash run_eval.sh                    # run all four models in parallel
+#   bash run_eval.sh gpt5               # GPT-5.3 only
+#   bash run_eval.sh gemini3            # Gemini 3 Flash only
+#   bash run_eval.sh claude             # Claude Sonnet 4.6 only
+#   bash run_eval.sh grok               # Grok 4.1 Fast only
 #   bash run_eval.sh status             # show case counts for all result files
+#   bash run_eval.sh logs [N]           # show last N lines of each log (default 20)
 #
 # Each run resumes automatically if the output file already has results.
 # It is always safe to kill and restart.
@@ -15,8 +19,9 @@
 set -euo pipefail
 
 PYTHON=/opt/miniconda3/bin/python
+PROVIDER=openrouter
 JUDGE_PROVIDER=openrouter
-JUDGE_MODEL=meta-llama/llama-3.3-70b-instruct
+JUDGE_MODEL=google/gemma-4-26b-a4b-it
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 cd "$SCRIPT_DIR"
@@ -66,36 +71,36 @@ logs() {
   fi
 }
 
-run_gemma() {
-  echo "→ Starting Gemma 4 31B evaluation…"
-  run_eval gemma4_31b \
-    --provider gemini --model gemma-4-31b-it \
+run_gpt5() {
+  echo "→ Starting GPT-5.3 evaluation…"
+  run_eval gpt5 \
+    --provider $PROVIDER --model "openai/gpt-5.3-chat" \
     --judge-provider $JUDGE_PROVIDER --judge-model $JUDGE_MODEL \
-    --output results/gemma4_31b.jsonl
+    --output results/gpt5.jsonl
 }
 
-run_gptoss_120b() {
-  echo "→ Starting GPT-OSS 120B evaluation…"
-  run_eval gptoss_120b \
-    --provider openrouter --model "openai/gpt-oss-120b" \
+run_gemini3() {
+  echo "→ Starting Gemini 3 Flash evaluation…"
+  run_eval gemini3_flash \
+    --provider $PROVIDER --model "google/gemini-3-flash-preview" \
     --judge-provider $JUDGE_PROVIDER --judge-model $JUDGE_MODEL \
-    --output results/gptoss_120b.jsonl
+    --output results/gemini3_flash.jsonl
 }
 
-run_gptoss_20b() {
-  echo "→ Starting GPT-OSS 20B evaluation…"
-  run_eval gptoss_20b \
-    --provider openrouter --model "openai/gpt-oss-20b" \
+run_claude() {
+  echo "→ Starting Claude Sonnet 4.6 evaluation…"
+  run_eval claude_sonnet_46 \
+    --provider $PROVIDER --model "anthropic/claude-sonnet-4.6" \
     --judge-provider $JUDGE_PROVIDER --judge-model $JUDGE_MODEL \
-    --output results/gptoss_20b.jsonl
+    --output results/claude_sonnet_46.jsonl
 }
 
-run_llama4() {
-  echo "→ Starting Llama 4 Scout evaluation (Groq, resumes from where it left off)…"
-  run_eval llama4_scout_drift \
-    --provider groq \
+run_grok() {
+  echo "→ Starting Grok 4.1 Fast evaluation…"
+  run_eval grok_41_fast \
+    --provider $PROVIDER --model "x-ai/grok-4.1-fast" \
     --judge-provider $JUDGE_PROVIDER --judge-model $JUDGE_MODEL \
-    --output results/llama4_scout_drift.jsonl
+    --output results/grok_41_fast.jsonl
 }
 
 # ── dispatch ───────────────────────────────────────────────────────────────────
@@ -109,26 +114,27 @@ case "$TARGET" in
   logs)
     logs "${2:-20}"
     ;;
-  gemma)
-    run_gemma
+  gpt5)
+    run_gpt5
     ;;
-  gptoss-120b)
-    run_gptoss_120b
+  gemini3)
+    run_gemini3
     ;;
-  gptoss-20b)
-    run_gptoss_20b
+  claude)
+    run_claude
     ;;
-  llama4)
-    run_llama4
+  grok)
+    run_grok
     ;;
   all)
-    echo "Running all three evaluations in parallel."
+    echo "Running all four evaluations in parallel."
     echo "  Progress (cases done): bash run_eval.sh status"
     echo "  Live error/retry logs: bash run_eval.sh logs"
     echo ""
-    run_gemma       &
-    run_gptoss_120b &
-    run_gptoss_20b  &
+    run_gpt5    &
+    run_gemini3 &
+    run_claude  &
+    run_grok    &
     wait
     echo ""
     echo "All evaluations complete."
@@ -136,7 +142,7 @@ case "$TARGET" in
     ;;
   *)
     echo "Unknown target: $TARGET"
-    echo "Usage: bash run_eval.sh [all|gemma|gptoss-120b|gptoss-20b|llama4|status|logs [N]]"
+    echo "Usage: bash run_eval.sh [all|gpt5|gemini3|claude|grok|status|logs [N]]"
     exit 1
     ;;
 esac

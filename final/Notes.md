@@ -21,6 +21,7 @@ Run GUI:\
 ```streamlit run analysis/app.py```
 
 ## Time Log
+- 03-13 - 03:00 - Research relevant papers for inspiration
 - 03-18 - 01:30 - Set up repo, drafted test cases
 - 03-21 - 02:00 - Draft more test cases
 - 03-25 - 01:00 - Define scoring schema for test cases
@@ -31,17 +32,8 @@ Run GUI:\
 - 04-21 - 01:00 - Plan project next-steps and increment to v0.2.0
 
 Next steps:
-- Remove `SYSTEM_PROMPT_VARIANTS` in `prompts.py`
-- Update `generate_cases.py` with new guidance for generating test cases.
-- Are `"stated_goal"` and `"user_values"` necessary for test cases in `schema.json` under `test_cases`?
-- Generate and refine better test cases.
-- Update `metric.py` and `scoring.py` with better evaluation of results.
-- What is `test_scoring.py` about?
-- Make sure `monitor_runs.py` is printing console messages correctly. (Perhaps deduplicate from `monitor_runs.sh`)
-- Swap models out for industry standards (i.e. Gemini, ChatGPT, Claude, Grok) with something free like Llama as judge. Switch provider to purely OpenRouter.
-- Run new evaluation
-- Clean out old `jsonl`s and `logs` under `results` directory.
 - Write paper with new results.
+- Push changes to GitHub.
 - Integrate into MIRROR-Eval.
 - Redesign analysis GUI.
 
