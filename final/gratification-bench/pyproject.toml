@@ -1,0 +1,60 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gratificationbench"
+version = "0.2.0"
+description = "A benchmark for measuring gratification-resisting behavior in LLMs"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+dependencies = [
+    "numpy",
+    "sentence-transformers",
+    "torch>=2.0",
+    "python-dotenv",
+]
+
+[project.optional-dependencies]
+gemini = ["google-genai>=1.51.0"]
+groq = ["groq"]
+hf = ["huggingface-hub>=0.20"]
+openrouter = ["openai>=1.0"]
+github = ["openai>=1.0"]
+together = ["openai>=1.0"]
+mirror-eval = ["mirroreval"]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "black>=23.0",
+    "jupyter",
+    "matplotlib",
+    "pandas",
+    "jsonschema",
+]
+all = [
+    "google-genai>=1.51.0",
+    "groq",
+    "huggingface-hub>=0.20",
+    "openai>=1.0",
+    "jupyter",
+    "matplotlib",
+    "pandas",
+    "jsonschema",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+[tool.black]
+line-length = 88
+target-version = ["py310", "py311", "py312"]
